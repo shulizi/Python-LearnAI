@@ -1,0 +1,311 @@
+//
+//  GameScene.swift
+//  FlappyBird
+//
+//  Created by LingNanTong on 2017/7/4.
+//
+//
+
+import SpriteKit
+
+let birdCategory: UInt32 = 0x1 << 0
+let pipeCategory: UInt32 = 0x1 << 1
+let riverCategory: UInt32 = 0x1 << 2
+
+class GameScene: SKScene, SKPhysicsContactDelegate {
+    var objects:[Object] = []
+    func setObjects(objects:[Object]){
+        self.objects = objects
+    }
+    enum GameStatus {
+        case idle
+        case running
+        case over
+    }
+    
+    var gameStatus: GameStatus = .idle
+    
+    var river1: SKSpriteNode!
+    var river2: SKSpriteNode!
+    var river3: SKSpriteNode!
+    var river4: SKSpriteNode!
+    
+    var bird: SKSpriteNode!
+    
+    lazy var gameOverLabel: SKLabelNode = {
+        let label = SKLabelNode(fontNamed: "Chalkduster")
+        label.text = "Game Over"
+        return label
+    }()
+    
+    lazy var metersLabel: SKLabelNode = {
+        let label = SKLabelNode(text: "meters:0")
+        label.verticalAlignmentMode = .top
+        label.horizontalAlignmentMode = .center
+        
+        return label
+    }()
+    
+    var meters = 0 {
+        didSet {
+            metersLabel.text = "meters:\(meters)"
+        }
+    }
+    
+    override func didMove(to view: SKView) {
+        self.backgroundColor = SKColor(red: 80.0/255.0, green: 192.0/255.0, blue: 203.0/255.0, alpha: 1.0)
+        
+        // Set Scene physics
+        self.physicsBody = SKPhysicsBody(edgeLoopFrom: self.frame)
+        self.physicsWorld.contactDelegate = self
+        
+        // Set Meter Label
+        metersLabel.position = CGPoint(x: self.size.width * 0.5, y: self.size.height)
+        metersLabel.zPosition = 100
+        addChild(metersLabel)
+        
+        // Set rivers
+        river1 = SKSpriteNode(imageNamed: "river")
+        river1.anchorPoint = CGPoint(x: 0, y: 0)
+        river1.position = CGPoint(x: 0, y: 0)
+        river1.physicsBody = SKPhysicsBody(edgeLoopFrom: CGRect(x: 0, y: 0, width: river1.size.width, height: river1.size.height))
+        river1.physicsBody?.categoryBitMask = riverCategory
+        addChild(river1)
+        river2 = SKSpriteNode(imageNamed: "river")
+        river2.anchorPoint = CGPoint(x: 0, y: 0)
+        river2.position = CGPoint(x: river1.size.width, y: 0)
+        river2.physicsBody = SKPhysicsBody(edgeLoopFrom: CGRect(x: 0, y: 0, width: river2.size.width, height: river2.size.height))
+        river2.physicsBody?.categoryBitMask = riverCategory
+        addChild(river2)
+        
+        // Set rivers
+        river3 = SKSpriteNode(imageNamed: "river")
+        river3.anchorPoint = CGPoint(x: 0, y: 0)
+        river3.position = CGPoint(x: 0, y: 0)
+        river3.physicsBody = SKPhysicsBody(edgeLoopFrom: CGRect(x: 0, y: 0, width: river3.size.width, height: river3.size.height))
+        river3.physicsBody?.categoryBitMask = riverCategory
+        addChild(river3)
+        river4 = SKSpriteNode(imageNamed: "river")
+        river4.anchorPoint = CGPoint(x: 0, y: 0)
+        river4.position = CGPoint(x: river1.size.width, y: 0)
+        river4.physicsBody = SKPhysicsBody(edgeLoopFrom: CGRect(x: 0, y: 0, width: river4.size.width, height: river4.size.height))
+        river4.physicsBody?.categoryBitMask = riverCategory
+        addChild(river4)
+        
+        // Set bird
+        bird = SKSpriteNode(imageNamed: "player1")
+        bird.physicsBody = SKPhysicsBody(texture: bird.texture!, size: bird.size)
+        bird.physicsBody?.allowsRotation = false
+        bird.physicsBody?.categoryBitMask = birdCategory
+        bird.physicsBody?.contactTestBitMask = riverCategory | pipeCategory
+        addChild(bird)
+        
+        shuffle()
+    }
+    
+    func shuffle() {
+        
+        gameStatus = .idle
+        
+        meters = 0
+        gameOverLabel.removeFromParent()
+        removeAllPipesNode()
+        
+        bird.physicsBody?.isDynamic = false
+        bird.position = CGPoint(x: self.size.width * 0.5, y: self.size.height * 0.5)
+        birdStartFly()
+    }
+    
+    func startGame() {
+        initC(2,2)
+        addObjectC(1, 3, 1, 1)
+        addObjectC(2, 3, 0, 1)
+        setInhibitionC(2, 1)
+    
+        let a = searchC()
+        
+        for i in 1..<100 {
+            print("num: \(a![i])")
+            if (a![i] == 0){
+                break
+            }
+        }
+        for object in objects{
+            print (object.name)
+        }
+        
+        gameStatus = .running
+        
+        bird.physicsBody?.isDynamic = true
+        startCreateRandomPipesAction()
+    }
+    
+    func gameOver() {
+        
+        gameStatus = .over
+        
+        birdStopFly()
+        stopCreateRandomPipesAction()
+        
+        isUserInteractionEnabled = false
+        
+        addChild(gameOverLabel)
+        gameOverLabel.position = CGPoint(x: self.size.width * 0.5, y: self.size.height)
+        gameOverLabel.run(SKAction.move(by: CGVector(dx:0, dy:-self.size.height * 0.5), duration: 0.5), completion: {
+            self.isUserInteractionEnabled = true
+        })
+    }
+    
+    func birdStartFly() {
+        let flyAction = SKAction.animate(with: [SKTexture(imageNamed: "player1"),
+                                                SKTexture(imageNamed: "player2"),
+                                                SKTexture(imageNamed: "player3"),
+                                                SKTexture(imageNamed: "player2")],
+                                         timePerFrame: 0.15)
+        bird.run(SKAction.repeatForever(flyAction), withKey: "fly")
+    }
+    
+    func birdStopFly() {
+        bird.removeAction(forKey: "fly")
+    }
+    
+    func moveScene() {
+        
+        //make river move
+        river1.position = CGPoint(x: river1.position.x - 1, y: river1.position.y)
+        river2.position = CGPoint(x: river2.position.x - 1, y: river2.position.y)
+        
+        //check river position
+        if river1.position.x < -river1.size.width {
+            river1.position = CGPoint(x: river2.position.x + river2.size.width, y: river1.position.y)
+        }
+        if river2.position.x < -river2.size.width {
+            river2.position = CGPoint(x: river1.position.x + river1.size.width, y: river2.position.y)
+        }
+        
+        //make river move
+        river3.position = CGPoint(x: river3.position.x + 1, y: river3.position.y)
+        river4.position = CGPoint(x: river4.position.x + 1, y: river4.position.y)
+        
+        //check river position
+        if river3.position.x > river3.size.width {
+            river3.position = CGPoint(x: river4.position.x - river4.size.width, y: river3.position.y)
+        }
+        if river4.position.x > river4.size.width {
+            river4.position = CGPoint(x: river3.position.x - river3.size.width, y: river4.position.y)
+        }
+        //make pipe move
+        for pipeNode in self.children where pipeNode.name == "pipe" {
+            if let pipeSprite = pipeNode as? SKSpriteNode {
+                pipeSprite.position = CGPoint(x: pipeSprite.position.x - 1, y: pipeSprite.position.y)
+                if pipeSprite.position.x < -pipeSprite.size.width * 0.5 {
+                    pipeSprite.removeFromParent()
+                }
+            }
+        }
+    }
+    
+    
+    func startCreateRandomPipesAction() {
+        let waitAct = SKAction.wait(forDuration: 3.5, withRange: 1.0)
+        let generatePipeAct = SKAction.run {
+            self.createRandomPipes()
+        }
+        run(SKAction.repeatForever(SKAction.sequence([waitAct, generatePipeAct])), withKey: "createPipe")
+    }
+    
+    func stopCreateRandomPipesAction() {
+        self.removeAction(forKey: "createPipe")
+    }
+    
+    func removeAllPipesNode() {
+        for pipe in self.children where pipe.name == "pipe" {
+            pipe.removeFromParent()
+        }
+    }
+    
+    func createRandomPipes() {
+        
+        //地板到顶部总高度
+        let height = self.size.height - self.river1.size.height
+        
+        //上下管道中间的空档
+        let pipeGap = CGFloat(arc4random_uniform(UInt32(bird.size.height))) + bird.size.height * 2.5
+        
+        //管道宽度在60-80之间取随机数
+        //    let pipeWidth = CGFloat(arc4random_uniform(20) + 60)
+        let pipeWidth = CGFloat(60.0)
+        
+        //随机计算上部pipe高度
+        let topPipeHeight = CGFloat(arc4random_uniform(UInt32(height - pipeGap)))
+        //总高度减去gap高度减去topPipe高度剩下九尾bottomPipe高度
+        let bottomPipeHeight = height - pipeGap - topPipeHeight
+        
+        addPipes(topSize: CGSize(width: pipeWidth, height: topPipeHeight), bottomSize: CGSize(width: pipeWidth, height: bottomPipeHeight))
+    }
+    
+    
+    func addPipes(topSize: CGSize, bottomSize: CGSize) {
+        let topTexture = SKTexture(imageNamed: "topPipe")
+        let topPipe = SKSpriteNode(texture: topTexture, size: topSize)
+        topPipe.physicsBody = SKPhysicsBody(texture: topTexture, size: topSize)
+        topPipe.physicsBody?.isDynamic = false
+        topPipe.physicsBody?.categoryBitMask = pipeCategory
+        topPipe.name = "pipe"
+        topPipe.position = CGPoint(x: self.size.width + topPipe.size.width * 0.5, y: self.size.height - topPipe.size.height * 0.5)
+        
+        let bottomTexture = SKTexture(imageNamed: "bottomPipe")
+        let bottomPipe = SKSpriteNode(texture: bottomTexture, size: bottomSize)
+        bottomPipe.physicsBody = SKPhysicsBody(texture: bottomTexture, size: bottomSize)
+        bottomPipe.physicsBody?.isDynamic = false
+        bottomPipe.physicsBody?.categoryBitMask = pipeCategory
+        bottomPipe.name = "pipe"
+        bottomPipe.position = CGPoint(x: self.size.width + bottomPipe.size.width * 0.5, y: self.river1.size.height + bottomPipe.size.height * 0.5)
+        
+        addChild(topPipe)
+        addChild(bottomPipe)
+    }
+    
+    func didBegin(_ contact: SKPhysicsContact) {
+        if gameStatus != .running { return }
+        
+        var bodyA : SKPhysicsBody
+        var bodyB : SKPhysicsBody
+        
+        if contact.bodyA.categoryBitMask < contact.bodyB.categoryBitMask {
+            bodyA = contact.bodyA
+            bodyB = contact.bodyB
+        }else {
+            bodyA = contact.bodyB
+            bodyB = contact.bodyA
+        }
+        
+        if (bodyA.categoryBitMask == birdCategory && bodyB.categoryBitMask == pipeCategory) ||
+            (bodyA.categoryBitMask == birdCategory && bodyB.categoryBitMask == riverCategory) {
+            gameOver()
+        }
+    }
+    
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        switch gameStatus {
+        case .idle:
+            startGame()
+        case .running:
+            bird.physicsBody?.velocity = CGVector(dx: 0, dy: 0)
+            bird.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 20))
+        case .over:
+            shuffle()
+        }
+    }
+    
+    override func update(_ currentTime: TimeInterval) {
+        if gameStatus == .running {
+            meters += 1
+        }
+        
+        if gameStatus != .over {
+            moveScene()
+        }
+    }
+    
+}

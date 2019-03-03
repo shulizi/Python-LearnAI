@@ -19,7 +19,7 @@ def get_data(path):
     truth_value = []
     data = []
     for item in data_list:
-        data.append(int(item.strip().split()[0]))           
+        data.append(int(item.strip().split()[0]))          
     return data
 
 
